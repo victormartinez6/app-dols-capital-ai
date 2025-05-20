@@ -1,0 +1,866 @@
+From 6ca77b0a659c88fc34d38da6f56069c426c372c1 Mon Sep 17 00:00:00 2001
+From: victormartinez6 <seu-email@exemplo.com>
+Date: Tue, 20 May 2025 11:59:21 -0400
+Subject: [PATCH] =?UTF-8?q?Adiciona=20bot=C3=A3o=20Limpar=20vermelho=20ao?=
+ =?UTF-8?q?=20lado=20do=20bot=C3=A3o=20Gerar=20Conte=C3=BAdo=20no=20Criado?=
+ =?UTF-8?q?r=20com=20IA?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .../ai-creator/components/AICreator.tsx       | 299 ++++++++++
+ .../ai-creator/hooks/useAICreator.ts          | 535 ++++++++++++++++++
+ 2 files changed, 834 insertions(+)
+ create mode 100644 src/pages/dashboard/marketing/ai-creator/components/AICreator.tsx
+ create mode 100644 src/pages/dashboard/marketing/ai-creator/hooks/useAICreator.ts
+
+diff --git a/src/pages/dashboard/marketing/ai-creator/components/AICreator.tsx b/src/pages/dashboard/marketing/ai-creator/components/AICreator.tsx
+new file mode 100644
+index 0000000..757d9f8
+--- /dev/null
++++ b/src/pages/dashboard/marketing/ai-creator/components/AICreator.tsx
+@@ -0,0 +1,299 @@
++import React, { useState, useEffect } from 'react';
++import { Sparkles, Send, Copy, Check, Clock, ChevronDown, ChevronUp, Trash2, AlertCircle, Eye } from 'lucide-react';
++import { useAICreator } from '../hooks/useAICreator';
++import { contentTypes } from '../types';
++import LoadingModal from './LoadingModal';
++
++const AICreator: React.FC = () => {
++  // Log para debug
++  console.log('AICreator component rendered');
++  
++  const {
++    prompt,
++    setPrompt,
++    response,
++    setResponse,
++    loading,
++    error,
++    title,
++    setTitle,
++    selectedType,
++    setSelectedType,
++    history,
++    generateContent,
++    deleteHistoryItem,
++    copyResponse,
++    loadHistoryItem,
++    clearForm
++  } = useAICreator();
++  
++  const [showHistory, setShowHistory] = useState(true);
++  const [copied, setCopied] = useState(false);
++  const [showLoadingModal, setShowLoadingModal] = useState(false);
++  
++  // Garantir que o histórico esteja sempre visível quando houver itens
++  useEffect(() => {
++    if (history.length > 0) {
++      setShowHistory(true);
++    }
++  }, [history.length]);
++  
++  const copyToClipboard = () => {
++    if (response) {
++      copyResponse();
++      setCopied(true);
++      setTimeout(() => setCopied(false), 2000);
++    }
++  };
++
++  // Função para lidar com o envio do formulário
++  const handleSubmit = async (e: React.FormEvent) => {
++    e.preventDefault();
++    if (!prompt.trim() || !title.trim()) return;
++    
++    // Limpar resposta anterior e mostrar loading modal
++    setResponse('');
++    setShowLoadingModal(true);
++    
++    try {
++      // Gerar conteúdo e salvar automaticamente no histórico
++      await generateContent();
++      
++      // Mostrar o histórico após gerar o conteúdo
++      setShowHistory(true);
++      
++      // Limpar os campos de preenchimento após gerar o conteúdo
++      setPrompt('');
++      setTitle('');
++    } catch (error) {
++      console.error('Erro ao gerar conteúdo:', error);
++    } finally {
++      // Fechar o modal de carregamento após concluir
++      setShowLoadingModal(false);
++    }
++  };
++
++  return (
++    <>
++      {/* Modal de carregamento */}
++      <LoadingModal isOpen={showLoadingModal} />
++      <div className="container mx-auto px-4 py-8 max-w-7xl text-white">
++      <div className="mb-8">
++        <h1 className="text-3xl font-bold text-white">
++          Criador com IA
++        </h1>
++        <p className="text-gray-400 mt-2">
++          Crie conteúdos de marketing personalizados com a ajuda da inteligência artificial
++        </p>
++      </div>
++
++      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
++        {/* Área principal - Coluna da direita */}
++        {/* Painel de histórico - Coluna da esquerda */}
++        <div className="lg:col-span-1">
++          <div className="bg-black rounded-lg shadow-lg overflow-hidden border border-gray-800 h-full">
++            <div className="p-4 bg-black flex justify-between items-center cursor-pointer border-b border-gray-800" 
++                 onClick={() => setShowHistory(!showHistory)}>
++              <h2 className="text-xl font-semibold text-white flex items-center">
++                <Clock className="h-5 w-5 mr-2" />
++                Histórico
++              </h2>
++              <button className="text-gray-400 hover:text-white">
++                {showHistory ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
++              </button>
++            </div>
++            
++            {showHistory && (
++              <div className="p-4 max-h-[600px] overflow-y-auto bg-black">
++                {history.length === 0 ? (
++                  <div className="text-center py-8 text-gray-500">
++                    <p>Nenhum histórico encontrado</p>
++                  </div>
++                ) : (
++                  <div className="space-y-3">
++                    {history.map((item) => (
++                      <div key={item.id} className="bg-gray-900 p-3 rounded-lg hover:bg-gray-800 transition-colors border border-gray-800">
++                        <div className="flex justify-between items-start mb-2">
++                          <h3 className="font-medium text-white truncate flex-1">{item.title}</h3>
++                          <div className="flex space-x-1">
++                            <button 
++                              onClick={() => loadHistoryItem(item)}
++                              className="text-blue-400 hover:text-blue-300 p-1 rounded-full hover:bg-gray-700"
++                              title="Visualizar este item"
++                            >
++                              <Eye className="h-4 w-4" />
++                            </button>
++                            <button 
++                              onClick={() => deleteHistoryItem(item.id)}
++                              className="text-red-400 hover:text-red-300 p-1 rounded-full hover:bg-gray-700"
++                              title="Excluir este item"
++                            >
++                              <Trash2 className="h-4 w-4" />
++                            </button>
++                          </div>
++                        </div>
++                        <p className="text-gray-400 text-sm truncate">{item.prompt.substring(0, 100)}{item.prompt.length > 100 ? '...' : ''}</p>
++                        <div className="mt-2 text-xs flex items-center">
++                          <Clock className="h-3 w-3 mr-1 text-blue-400" />
++                          <span className="text-gray-400">
++                            {new Date(item.createdAt).toLocaleDateString('pt-BR', {
++                              day: '2-digit',
++                              month: '2-digit',
++                              year: 'numeric',
++                              hour: '2-digit',
++                              minute: '2-digit'
++                            })}
++                          </span>
++                        </div>
++                      </div>
++                    ))}
++                  </div>
++                )}
++              </div>
++            )}
++          </div>
++        </div>
++        
++        {/* Área principal - Coluna da direita */}
++        <div className="lg:col-span-2">
++          <div className="bg-black rounded-lg shadow-lg overflow-hidden border border-gray-800 mb-6">
++            <div className="p-4 bg-black border-b border-gray-800">
++              <h2 className="text-xl font-semibold text-white flex items-center">
++                <Sparkles className="h-5 w-5 mr-2" />
++                Novo Conteúdo
++              </h2>
++            </div>
++            
++            <div className="p-4">
++              {/* Título do conteúdo */}
++              <div className="mb-4">
++                <label htmlFor="title" className="block text-sm font-medium text-gray-400 mb-1">
++                  Título do conteúdo
++                </label>
++                <input
++                  id="title"
++                  value={title}
++                  onChange={(e) => setTitle(e.target.value)}
++                  placeholder="Digite um título para seu conteúdo..."
++                  className="w-full px-4 py-2 bg-black border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
++                />
++              </div>
++
++              {/* Tipo de conteúdo */}
++              <div className="mb-4">
++                <label htmlFor="contentType" className="block text-sm font-medium text-gray-400 mb-1">
++                  Tipo de conteúdo
++                </label>
++                <select
++                  id="contentType"
++                  value={selectedType}
++                  onChange={(e) => setSelectedType(e.target.value as any)}
++                  className="w-full px-4 py-2 bg-black border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
++                >
++                  {contentTypes.map((type) => (
++                    <option key={type.id} value={type.id}>
++                      {type.name}
++                    </option>
++                  ))}
++                </select>
++              </div>
++
++              {/* Área do prompt */}
++              <div className="mb-4">
++                <label htmlFor="prompt" className="block text-sm font-medium text-gray-400 mb-1">
++                  O que você deseja criar?
++                </label>
++                <textarea
++                  id="prompt"
++                  value={prompt}
++                  onChange={(e) => setPrompt(e.target.value)}
++                  placeholder="Descreva o conteúdo que você deseja criar..."
++                  className="w-full px-4 py-2 bg-black border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[120px]"
++                />
++              </div>
++
++              {/* Botão de gerar */}
++              {/* Mensagem de erro - só exibir se não houver histórico disponível */}
++              {error && history.length === 0 && (
++                <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-md flex items-start">
++                  <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
++                  <p className="text-red-200 text-sm">{error}</p>
++                </div>
++              )}
++
++              <div className="flex justify-end space-x-3">
++                {/* Botão Limpar */}
++                <button
++                  onClick={clearForm}
++                  disabled={loading}
++                  className="flex items-center px-6 py-3 rounded-lg transition-all duration-300 bg-gradient-to-r from-red-600 to-red-700 text-white hover:from-red-700 hover:to-red-800 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
++                  title="Limpar formulário para criar novo conteúdo"
++                >
++                  <Trash2 className="h-5 w-5 mr-2" />
++                  <span>Limpar</span>
++                </button>
++                
++                {/* Botão Gerar Conteúdo */}
++                <button
++                  onClick={handleSubmit}
++                  disabled={loading || !prompt.trim()}
++                  className={`flex items-center px-6 py-3 rounded-lg transition-all duration-300 ${
++                    loading || !prompt.trim()
++                      ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
++                      : 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white hover:from-blue-700 hover:to-indigo-800 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
++                  }`}
++                >
++                  {loading ? (
++                    <>
++                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
++                      <span>Gerando...</span>
++                    </>
++                  ) : (
++                    <>
++                      <Send className="h-5 w-5 mr-2" />
++                      <span>Gerar Conteúdo</span>
++                    </>
++                  )}
++                </button>
++              </div>
++            </div>
++          </div>
++
++          {/* Área de resposta */}
++          {response && (
++            <div className="bg-black rounded-lg shadow-lg overflow-hidden border border-gray-800">
++              <div className="p-4 bg-black border-b border-gray-800 flex justify-between items-center">
++                <h2 className="text-xl font-semibold text-white">Conteúdo Gerado</h2>
++                {/* Botão Copiar */}
++                <button
++                  onClick={copyToClipboard}
++                  className="flex items-center px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-md text-white transition-colors"
++                >
++                  {copied ? (
++                    <>
++                      <Check className="h-4 w-4 mr-1" />
++                      <span>Copiado!</span>
++                    </>
++                  ) : (
++                    <>
++                      <Copy className="h-4 w-4 mr-1" />
++                      <span>Copiar</span>
++                    </>
++                  )}
++                </button>
++              </div>
++              <div className="p-4">
++                <div className="bg-gray-900 rounded-lg p-4 text-white whitespace-pre-line border border-gray-800">
++                  {response}
++                </div>
++              </div>
++            </div>
++          )}
++        </div>
++      </div>
++      </div>
++    </>
++  );
++};
++
++export default AICreator;
+diff --git a/src/pages/dashboard/marketing/ai-creator/hooks/useAICreator.ts b/src/pages/dashboard/marketing/ai-creator/hooks/useAICreator.ts
+new file mode 100644
+index 0000000..baf1fac
+--- /dev/null
++++ b/src/pages/dashboard/marketing/ai-creator/hooks/useAICreator.ts
+@@ -0,0 +1,535 @@
++import { useState, useCallback, useEffect } from 'react';
++import { useAuth } from '../../../../../contexts/AuthContext';
++import { db } from '../../../../../lib/firebase';
++import { collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
++import { AIPrompt } from '../types';
++
++interface UseAICreatorReturn {
++  prompt: string;
++  setPrompt: (prompt: string) => void;
++  response: string;
++  setResponse: (response: string) => void;
++  loading: boolean;
++  error: string | null;
++  title: string;
++  setTitle: (title: string) => void;
++  selectedType: 'social-post' | 'article' | 'email' | 'other';
++  setSelectedType: (type: 'social-post' | 'article' | 'email' | 'other') => void;
++  history: AIPrompt[];
++  setHistory: (history: AIPrompt[]) => void;
++  generateContent: () => Promise<void>;
++  loadHistory: () => Promise<void>;
++  deleteHistoryItem: (id: string) => Promise<void>;
++  copyResponse: () => void;
++  loadHistoryItem: (item: AIPrompt) => void;
++  clearForm: () => void;
++}
++
++export const useAICreator = (): UseAICreatorReturn => {
++  console.log('useAICreator hook called');
++  const { user } = useAuth();
++  const [prompt, setPrompt] = useState('');
++  const [response, setResponse] = useState('');
++  const [loading, setLoading] = useState(false);
++  const [history, setHistory] = useState<AIPrompt[]>([]);
++  const [selectedType, setSelectedType] = useState<'social-post' | 'article' | 'email' | 'other'>('social-post');
++  const [title, setTitle] = useState('');
++  const [error, setError] = useState<string | null>(null);
++
++  // Carregar histórico do usuário com persistência aprimorada
++  const loadHistory = useCallback(async () => {
++    try {
++      if (!user?.id) {
++        console.log('Usuário não autenticado, não é possível carregar histórico');
++        return;
++      }
++      
++      console.log('Carregando histórico para o usuário:', user.id);
++      
++      // Chave única para o histórico deste usuário
++      const cachedHistoryKey = `ai_history_${user.id}`;
++      
++      // ETAPA 1: Carregar do localStorage para feedback visual imediato
++      const cachedHistory = localStorage.getItem(cachedHistoryKey);
++      let localHistoryLoaded = false;
++      
++      if (cachedHistory) {
++        try {
++          const parsedHistory = JSON.parse(cachedHistory);
++          if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
++            // Converter strings de data para objetos Date
++            const formattedHistory = parsedHistory.map(item => ({
++              ...item,
++              createdAt: new Date(item.createdAt)
++            }));
++            
++            // Ordenar por data (mais recente primeiro)
++            formattedHistory.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
++            
++            setHistory(formattedHistory);
++            localHistoryLoaded = true;
++            console.log(`Histórico carregado do cache local: ${formattedHistory.length} itens`);
++          }
++        } catch (e) {
++          console.error('Erro ao processar cache do histórico:', e);
++        }
++      }
++
++      // ETAPA 2: Buscar dados atualizados do Firestore
++      try {
++        console.log('Buscando histórico atualizado do Firestore');
++        
++        // Modificando a consulta para evitar o erro de índice
++        // Primeiro buscamos todos os documentos do usuário sem ordenar
++        const q = query(
++          collection(db, 'ai-prompts'),
++          where('userId', '==', user.id)
++        );
++
++        const querySnapshot = await getDocs(q);
++        const prompts: AIPrompt[] = [];
++
++        querySnapshot.forEach((doc) => {
++          const data = doc.data();
++          prompts.push({
++            id: doc.id,
++            prompt: data.prompt,
++            response: data.response,
++            createdAt: data.createdAt?.toDate() || new Date(),
++            userId: data.userId,
++            userEmail: data.userEmail || '',
++            type: data.type || 'other',
++            title: data.title || 'Sem título'
++          });
++        });
++        
++        // Ordenar manualmente os resultados por data (mais recente primeiro)
++        prompts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
++
++        console.log(`Dados carregados do Firestore: ${prompts.length} itens`);
++        
++        // Só atualizar o estado se encontramos dados no Firestore ou se não tínhamos dados locais
++        if (prompts.length > 0 || !localHistoryLoaded) {
++          // Atualizar o estado com os dados do Firestore
++          setHistory(prompts);
++          console.log('Estado atualizado com dados do Firestore');
++        }
++        
++        // ETAPA 3: Sincronizar o localStorage com os dados mais recentes
++        // Sempre salvar no localStorage para persistência, mesmo se for igual ao que já temos
++        try {
++          // Precisamos converter as datas para strings antes de salvar
++          const historyForCache = prompts.map(item => ({
++            ...item,
++            createdAt: item.createdAt.toISOString()
++          }));
++          localStorage.setItem(cachedHistoryKey, JSON.stringify(historyForCache));
++          console.log('Histórico atualizado no cache local');
++        } catch (e) {
++          console.error('Erro ao salvar histórico no cache:', e);
++        }
++      } catch (firestoreError) {
++        console.error('Erro ao buscar dados do Firestore:', firestoreError);
++        console.log('Usando apenas dados do cache local devido ao erro do Firestore');
++        
++        // Se já carregamos dados do localStorage, não precisamos fazer nada
++        // Se não carregamos, exibir mensagem de erro
++        if (!localHistoryLoaded) {
++          setError('Não foi possível carregar seu histórico do servidor. Mostrando apenas dados em cache.');
++        }
++      }
++      
++      // A sincronização com localStorage agora é feita dentro do bloco try do Firestore
++      // para garantir que só sincronizamos quando temos dados válidos
++    } catch (error) {
++      console.error('Erro ao carregar histórico:', error);
++      setError('Não foi possível carregar seu histórico. Tente novamente mais tarde.');
++    }
++  }, [user?.id]);
++
++  // Função para gerar conteúdo com a API do ChatGPT
++  const generateContent = useCallback(async () => {
++    if (!prompt.trim()) {
++      setError('Por favor, insira um prompt válido.');
++      return;
++    }
++
++    if (!title.trim()) {
++      setError('Por favor, insira um título para o conteúdo.');
++      return;
++    }
++
++    setLoading(true);
++    setError(null);
++    
++    // Criar um ID temporário para o item do histórico
++    const tempId = `temp_${Date.now()}`;
++    // Criar um item temporário com status "Gerando..."
++    const tempPrompt: AIPrompt = {
++      id: tempId,
++      prompt: prompt,
++      response: "Gerando conteúdo... Por favor, aguarde.",
++      createdAt: new Date(),
++      userId: user?.id || '',
++      userEmail: user?.email || '',
++      type: selectedType,
++      title: title
++    };
++    
++    // Adicionar o item temporário ao histórico imediatamente
++    const tempUpdatedHistory = [tempPrompt, ...history];
++    setHistory(tempUpdatedHistory);
++    
++    // Salvar no localStorage imediatamente
++    try {
++      if (user?.id) {
++        const cachedHistoryKey = `ai_history_${user.id}`;
++        const historyForCache = tempUpdatedHistory.map(item => ({
++          ...item,
++          createdAt: item.createdAt.toISOString()
++        }));
++        localStorage.setItem(cachedHistoryKey, JSON.stringify(historyForCache));
++        console.log('Cache local atualizado com item temporário (status: gerando)');
++      }
++    } catch (e) {
++      console.error('Erro ao atualizar cache local com item temporário:', e);
++    }
++    
++    try {
++      // Construir o prompt completo baseado no tipo selecionado
++      let fullPrompt = prompt;
++      
++      // Adicionar contexto baseado no tipo de conteúdo
++      if (selectedType === 'social-post') {
++        fullPrompt = `Crie um post para redes sociais sobre: ${prompt}. O post deve ser engajador, ter entre 80 e 150 palavras, e incluir hashtags relevantes.`;
++      } else if (selectedType === 'article') {
++        fullPrompt = `Escreva um artigo informativo sobre: ${prompt}. O artigo deve ter uma introdução, desenvolvimento e conclusão, com aproximadamente 500 palavras.`;
++      } else if (selectedType === 'email') {
++        fullPrompt = `Crie um email de marketing sobre: ${prompt}. O email deve ter um título atrativo, ser persuasivo e ter um call-to-action claro.`;
++      }
++
++      // Fazer a requisição para a API do OpenAI
++      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
++      
++      if (!apiKey) {
++        throw new Error('Chave da API do OpenAI não encontrada. Verifique se a variável VITE_OPENAI_API_KEY está definida no arquivo .env');
++      }
++      
++      const response = await fetch('https://api.openai.com/v1/chat/completions', {
++        method: 'POST',
++        headers: {
++          'Content-Type': 'application/json',
++          'Authorization': `Bearer ${apiKey}`
++        },
++        body: JSON.stringify({
++          model: 'gpt-4o',
++          messages: [
++            {
++              role: 'system',
++              content: 'Você é um assistente especializado em marketing financeiro, focado em criar conteúdo para uma empresa de crédito imobiliário chamada Dols Capital. Seu conteúdo deve ser profissional, persuasivo e direcionado para o mercado brasileiro.'
++            },
++            {
++              role: 'user',
++              content: fullPrompt
++            }
++          ],
++          temperature: 0.7,
++          max_tokens: 1000
++        })
++      });
++
++      if (!response.ok) {
++        const errorData = await response.json();
++        throw new Error(`Erro na API do OpenAI: ${errorData.error?.message || response.statusText}`);
++      }
++
++      const data = await response.json();
++      const generatedText = data.choices[0]?.message?.content || 'Não foi possível gerar conteúdo.';
++      
++      // Atualizar o estado com o texto gerado
++      setResponse(generatedText);
++      
++      // Atualizar o item temporário no histórico com o conteúdo gerado
++      const updatedHistory = history.map(item => 
++        item.id === tempId ? { ...item, response: generatedText } : item
++      );
++      setHistory(updatedHistory);
++      
++      // Salvar no Firestore e atualizar o localStorage
++      try {
++        if (user?.id) {
++          // Salvar no Firestore
++          const docRef = await addDoc(collection(db, 'ai-prompts'), {
++            prompt: prompt,
++            response: generatedText,
++            createdAt: serverTimestamp(),
++            userId: user.id,
++            userEmail: user.email || '',
++            type: selectedType,
++            title: title
++          });
++          
++          console.log('Item salvo no Firestore com ID:', docRef.id);
++          
++          // Atualizar o ID do item no histórico
++          const finalHistory = updatedHistory.map(item => 
++            item.id === tempId ? { ...item, id: docRef.id } : item
++          );
++          setHistory(finalHistory);
++          
++          // Atualizar o localStorage
++          const cachedHistoryKey = `ai_history_${user.id}`;
++          const historyForCache = finalHistory.map(item => ({
++            ...item,
++            createdAt: item.createdAt.toISOString()
++          }));
++          localStorage.setItem(cachedHistoryKey, JSON.stringify(historyForCache));
++          console.log('Cache local atualizado com conteúdo gerado e ID do Firestore');
++        }
++      } catch (firestoreError) {
++        console.error('Erro ao salvar no Firestore:', firestoreError);
++        // Mesmo com erro no Firestore, já atualizamos o estado local e o localStorage
++        // com o conteúdo gerado, então o usuário não perde o conteúdo
++        setError('Não foi possível salvar no servidor, mas o conteúdo foi mantido localmente.');
++      }
++      
++    } catch (error) {
++      console.error('Erro ao gerar conteúdo:', error);
++      setError('Ocorreu um erro ao gerar o conteúdo. Por favor, tente novamente mais tarde.');
++      
++      // Remover o item temporário do histórico em caso de erro
++      const updatedHistory = history.filter(item => item.id !== tempId);
++      setHistory(updatedHistory);
++      
++      // Atualizar o localStorage removendo o item temporário
++      try {
++        if (user?.id) {
++          const cachedHistoryKey = `ai_history_${user.id}`;
++          const historyForCache = updatedHistory.map(item => ({
++            ...item,
++            createdAt: item.createdAt.toISOString()
++          }));
++          localStorage.setItem(cachedHistoryKey, JSON.stringify(historyForCache));
++          console.log('Cache local atualizado após remover item temporário devido a erro');
++        }
++      } catch (e) {
++        console.error('Erro ao atualizar cache local após erro:', e);
++      }
++    } finally {
++      setLoading(false);
++    }
++  }, [prompt, title, selectedType, user, history]);
++
++  // Função para salvar no histórico com persistência melhorada e tratamento de erros
++  const saveToHistory = useCallback(async (promptText: string, responseText: string) => {
++    try {
++      if (!user?.id) {
++        console.log('Usuário não autenticado, não é possível salvar no histórico');
++        return;
++      }
++
++      console.log('Salvando novo item no histórico para o usuário:', user.id);
++      
++      // Criar o novo item com a data atual
++      const newPrompt: AIPrompt = {
++        id: '', // Será atualizado após salvar no Firestore
++        prompt: promptText,
++        response: responseText,
++        createdAt: new Date(),
++        userId: user.id,
++        userEmail: user.email || '',
++        type: selectedType,
++        title: title
++      };
++      
++      // ETAPA 1: Atualizar o estado local imediatamente para feedback visual rápido
++      // Usamos um ID temporário para o item
++      const tempId = `temp_${Date.now()}`;
++      const tempPrompt = { ...newPrompt, id: tempId };
++      const tempUpdatedHistory = [tempPrompt, ...history];
++      setHistory(tempUpdatedHistory);
++      console.log('Estado atualizado com item temporário para feedback visual rápido');
++      
++      // ETAPA 2: Salvar no Firestore
++      try {
++        const docRef = await addDoc(collection(db, 'ai-prompts'), {
++          prompt: promptText,
++          response: responseText,
++          createdAt: serverTimestamp(),
++          userId: user.id,
++          userEmail: user.email || '',
++          type: selectedType,
++          title: title
++        });
++
++        console.log('Item salvo no Firestore com ID:', docRef.id);
++        
++        // Atualizar o ID do item com o ID real do Firestore
++        newPrompt.id = docRef.id;
++        
++        // Atualizar o estado substituindo o item temporário pelo item real
++        const updatedHistory = history.map(item => 
++          item.id === tempId ? newPrompt : item
++        );
++        setHistory(updatedHistory);
++        console.log('Estado atualizado com ID real do Firestore');
++        
++        // ETAPA 3: Atualizar o localStorage para persistência entre sessões
++        try {
++          const cachedHistoryKey = `ai_history_${user.id}`;
++          const historyForCache = updatedHistory.map(item => ({
++            ...item,
++            createdAt: item.createdAt.toISOString()
++          }));
++          localStorage.setItem(cachedHistoryKey, JSON.stringify(historyForCache));
++          console.log('Cache local atualizado com novo item');
++        } catch (e) {
++          console.error('Erro ao atualizar cache local:', e);
++        }
++      } catch (firestoreError) {
++        console.error('Erro ao salvar no Firestore:', firestoreError);
++        // Mesmo com erro no Firestore, mantemos o item no estado local e no localStorage
++        // para que o usuário não perca o conteúdo gerado
++        
++        // Atualizar o localStorage com o item temporário
++        try {
++          const cachedHistoryKey = `ai_history_${user.id}`;
++          const historyForCache = tempUpdatedHistory.map(item => ({
++            ...item,
++            createdAt: item.createdAt.toISOString()
++          }));
++          localStorage.setItem(cachedHistoryKey, JSON.stringify(historyForCache));
++          console.log('Cache local atualizado com item temporário devido a erro no Firestore');
++        } catch (e) {
++          console.error('Erro ao atualizar cache local:', e);
++        }
++        
++        setError('Não foi possível salvar no servidor. O conteúdo foi mantido localmente.');
++      }
++    } catch (error) {
++      console.error('Erro ao salvar no histórico:', error);
++      setError('Não foi possível salvar no histórico. O conteúdo foi gerado, mas não será salvo para uso futuro.');
++    }
++  }, [user, selectedType, title, history]);
++
++  // Função para excluir um item do histórico com persistência melhorada e tratamento de erros
++  const deleteHistoryItem = useCallback(async (id: string) => {
++    try {
++      if (!user?.id) {
++        console.log('Usuário não autenticado, não é possível excluir do histórico');
++        return;
++      }
++      
++      console.log('Excluindo item do histórico:', id);
++      
++      // ETAPA 1: Atualizar o estado local primeiro para feedback imediato
++      const itemToDelete = history.find(item => item.id === id);
++      if (!itemToDelete) {
++        console.log('Item não encontrado no histórico local');
++        return;
++      }
++      
++      // Verificar se o ID é temporário (começa com 'temp_')
++      const isTempId = id.startsWith('temp_');
++      
++      // Atualizar o estado local removendo o item
++      const updatedHistory = history.filter(item => item.id !== id);
++      setHistory(updatedHistory);
++      console.log('Estado atualizado após remoção do item');
++      
++      // ETAPA 2: Atualizar o localStorage para persistência entre sessões
++      try {
++        const cachedHistoryKey = `ai_history_${user.id}`;
++        const historyForCache = updatedHistory.map(item => ({
++          ...item,
++          createdAt: item.createdAt.toISOString()
++        }));
++        localStorage.setItem(cachedHistoryKey, JSON.stringify(historyForCache));
++        console.log('Cache local atualizado após exclusão');
++      } catch (e) {
++        console.error('Erro ao atualizar cache local após exclusão:', e);
++      }
++      
++      // ETAPA 3: Remover do Firestore (apenas se não for um ID temporário)
++      if (!isTempId) {
++        try {
++          await deleteDoc(doc(db, 'ai-prompts', id));
++          console.log('Item removido do Firestore');
++        } catch (firestoreError) {
++          console.error('Erro ao remover item do Firestore:', firestoreError);
++          // Não exibimos erro para o usuário aqui, pois já removemos do estado local e localStorage
++          // O importante é que o usuário veja o item removido da interface
++        }
++      } else {
++        console.log('Item com ID temporário, não é necessário remover do Firestore');
++      }
++      
++    } catch (error) {
++      console.error('Erro ao excluir item do histórico:', error);
++      setError('Não foi possível excluir o item. Tente novamente mais tarde.');
++      // Recarregar o histórico em caso de erro para garantir consistência
++      loadHistory();
++    }
++  }, [user?.id, history, loadHistory]);
++
++  // Carregar o histórico automaticamente quando o hook for montado
++  useEffect(() => {
++    console.log('AICreator: Efeito de carregamento do histórico executado');
++    if (user?.id) {
++      loadHistory();
++    }
++  }, [loadHistory, user?.id]);
++
++  // Função para copiar resposta
++  const copyResponse = useCallback(() => {
++    navigator.clipboard.writeText(response)
++      .then(() => {
++        // Feedback visual temporário será tratado no componente
++      })
++      .catch(err => {
++        console.error('Erro ao copiar texto:', err);
++        setError('Não foi possível copiar o texto. Tente selecionar e copiar manualmente.');
++      });
++  }, [response]);
++
++  // Função para carregar um item do histórico
++  const loadHistoryItem = useCallback((item: AIPrompt) => {
++    setPrompt(item.prompt);
++    setResponse(item.response);
++    setSelectedType(item.type);
++    setTitle(item.title);
++  }, []);
++
++  // Função para limpar o formulário e a resposta
++  const clearForm = useCallback(() => {
++    setPrompt('');
++    setResponse('');
++    setTitle('');
++    setSelectedType('social-post');
++    setError(null);
++    console.log('Formulário limpo');
++  }, []);
++
++  return {
++    prompt,
++    setPrompt,
++    response,
++    setResponse,
++    loading,
++    error,
++    title,
++    setTitle,
++    selectedType,
++    setSelectedType,
++    history,
++    setHistory,
++    generateContent,
++    loadHistory,
++    deleteHistoryItem,
++    copyResponse,
++    loadHistoryItem,
++    clearForm
++  };
++};
++
++export default useAICreator;
+-- 
+2.49.0.windows.1
+
