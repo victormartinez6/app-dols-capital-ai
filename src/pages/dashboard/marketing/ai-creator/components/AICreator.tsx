@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Send, Copy, Check, Clock, ChevronDown, ChevronUp, Trash2, AlertCircle, Eye } from 'lucide-react';
+import { Sparkles, Send, Copy, Check, Clock, ChevronDown, ChevronUp, Trash2, AlertCircle, Eye, X } from 'lucide-react';
 import { useAICreator } from '../hooks/useAICreator';
 import { contentTypes } from '../types';
 import LoadingModal from './LoadingModal';
@@ -31,11 +31,15 @@ const AICreator: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [showLoadingModal, setShowLoadingModal] = useState(false);
   
-  // Carregar histórico do usuário ao iniciar e mantê-lo sempre visível
+  // Carregar o histórico apenas quando o componente é montado
   useEffect(() => {
-    loadHistory();
-    // Garantir que o histórico sempre esteja visível
+    console.log('AICreator: Componente montado, carregando histórico');
+    
+    // Forçar que o histórico sempre esteja visível
     setShowHistory(true);
+    
+    // Carregar histórico imediatamente
+    loadHistory();
   }, [loadHistory]);
   
   const copyToClipboard = () => {
@@ -44,6 +48,13 @@ const AICreator: React.FC = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+  
+  // Função para limpar os campos
+  const handleClearFields = () => {
+    setPrompt('');
+    setTitle('');
+    setResponse('');
   };
 
   // Função para lidar com o envio do formulário
@@ -78,36 +89,55 @@ const AICreator: React.FC = () => {
       {/* Modal de carregamento */}
       <LoadingModal isOpen={showLoadingModal} />
       <div className="container mx-auto px-4 py-8 max-w-7xl text-white">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">
-          Criador com IA
-        </h1>
-        <p className="text-gray-400 mt-2">
-          Crie conteúdos de marketing personalizados com a ajuda da inteligência artificial
-        </p>
-      </div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white">
+            Criador com IA
+          </h1>
+          <p className="text-gray-400 mt-2">
+            Crie conteúdos de marketing personalizados com a ajuda da inteligência artificial
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Área principal - Coluna da direita */}
-        {/* Painel de histórico - Coluna da esquerda */}
-        <div className="lg:col-span-1">
-          <div className="bg-black rounded-lg shadow-lg overflow-hidden border border-gray-800 h-full">
-            <div className="p-4 bg-black flex justify-between items-center cursor-pointer border-b border-gray-800" 
-                 onClick={() => setShowHistory(!showHistory)}>
-              <h2 className="text-xl font-semibold text-white flex items-center">
-                <Clock className="h-5 w-5 mr-2" />
-                Histórico
-              </h2>
-              <button className="text-gray-400 hover:text-white">
-                {showHistory ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-              </button>
-            </div>
-            
-            {showHistory && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Painel de histórico - Coluna da esquerda */}
+          <div className="lg:col-span-1">
+            <div className="bg-black rounded-lg shadow-lg overflow-hidden border border-gray-800 h-full">
+              <div className="p-4 bg-black flex justify-between items-center cursor-pointer border-b border-gray-800" 
+                  onClick={() => setShowHistory(!showHistory)}>
+                <h2 className="text-xl font-semibold text-white flex items-center">
+                  <Clock className="h-5 w-5 mr-2" />
+                  Histórico
+                </h2>
+                <button className="text-gray-400 hover:text-white">
+                  {showHistory ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                </button>
+              </div>
+              
               <div className="p-4 max-h-[600px] overflow-y-auto bg-black">
-                {history.length === 0 ? (
+                {loading ? (
                   <div className="text-center py-8 text-gray-500">
-                    <p>Nenhum histórico encontrado</p>
+                    <div className="animate-pulse">
+                      <div className="h-4 bg-gray-700 rounded w-3/4 mx-auto mb-4"></div>
+                      <div className="h-4 bg-gray-700 rounded w-1/2 mx-auto mb-4"></div>
+                      <div className="h-4 bg-gray-700 rounded w-2/3 mx-auto"></div>
+                    </div>
+                    <p className="mt-4">Carregando histórico...</p>
+                    <button 
+                      onClick={() => loadHistory()} 
+                      className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-white text-sm"
+                    >
+                      Recarregar Histórico
+                    </button>
+                  </div>
+                ) : history.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Nenhum histórico encontrado.</p>
+                    <button 
+                      onClick={() => loadHistory()} 
+                      className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-white text-sm"
+                    >
+                      Recarregar Histórico
+                    </button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -150,134 +180,150 @@ const AICreator: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+          
+          {/* Área principal - Coluna da direita */}
+          <div className="lg:col-span-2">
+            <div className="bg-black rounded-lg shadow-lg overflow-hidden border border-gray-800 mb-6">
+              <div className="p-4 bg-black border-b border-gray-800">
+                <h2 className="text-xl font-semibold text-white flex items-center">
+                  <Sparkles className="h-5 w-5 mr-2" />
+                  Novo Conteúdo
+                </h2>
+              </div>
+              
+              <div className="p-4">
+                {/* Título do conteúdo */}
+                <div className="mb-4">
+                  <label htmlFor="title" className="block text-sm font-medium text-gray-400 mb-1">
+                    Título do conteúdo
+                  </label>
+                  <input
+                    id="title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Digite um título para seu conteúdo..."
+                    className="w-full px-4 py-2 bg-black border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Tipo de conteúdo */}
+                <div className="mb-4">
+                  <label htmlFor="contentType" className="block text-sm font-medium text-gray-400 mb-1">
+                    Tipo de conteúdo
+                  </label>
+                  <select
+                    id="contentType"
+                    value={selectedType}
+                    onChange={(e) => setSelectedType(e.target.value as any)}
+                    className="w-full px-4 py-2 bg-black border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    {contentTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Área do prompt */}
+                <div className="mb-4">
+                  <label htmlFor="prompt" className="block text-sm font-medium text-gray-400 mb-1">
+                    O que você deseja criar?
+                  </label>
+                  <textarea
+                    id="prompt"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Descreva o conteúdo que você deseja criar..."
+                    className="w-full px-4 py-2 bg-black border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[120px]"
+                  />
+                </div>
+
+                {/* Botão de gerar */}
+                {/* Mensagem de erro - só exibir se não houver histórico disponível */}
+                {error && history.length === 0 && (
+                  <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-md flex items-start">
+                    <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <p className="text-red-200 text-sm">{error}</p>
+                  </div>
+                )}
+
+                <div className="flex justify-end space-x-3">
+                  {/* Botão Limpar */}
+                  <button
+                    onClick={handleClearFields}
+                    disabled={loading}
+                    className={`flex items-center px-6 py-3 rounded-lg transition-all duration-300 ${
+                      loading
+                        ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                        : (!prompt.trim() && !title.trim() && !response) 
+                          ? 'bg-gray-700 text-gray-400 cursor-not-allowed' 
+                          : 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:from-red-700 hover:to-red-800 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
+                    }`}
+                  >
+                    <X className="h-5 w-5 mr-2" />
+                    <span>Limpar</span>
+                  </button>
+                  
+                  {/* Botão Gerar Conteúdo */}
+                  <button
+                    onClick={handleSubmit}
+                    disabled={loading || !prompt.trim()}
+                    className={`flex items-center px-6 py-3 rounded-lg transition-all duration-300 ${
+                      loading || !prompt.trim()
+                        ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white hover:from-blue-700 hover:to-indigo-800 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
+                    }`}
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                        <span>Gerando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-5 w-5 mr-2" />
+                        <span>Gerar Conteúdo</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Área de resposta */}
+            {response && (
+              <div className="bg-black rounded-lg shadow-lg overflow-hidden border border-gray-800">
+                <div className="p-4 bg-black border-b border-gray-800 flex justify-between items-center">
+                  <h2 className="text-xl font-semibold text-white">Conteúdo Gerado</h2>
+                  <button
+                    onClick={copyToClipboard}
+                    className="flex items-center px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-md text-white transition-colors"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-4 w-4 mr-1" />
+                        <span>Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4 mr-1" />
+                        <span>Copiar</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="p-4">
+                  <div className="bg-gray-900 rounded-lg p-4 text-white whitespace-pre-line border border-gray-800">
+                    {response}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
-        
-        {/* Área principal - Coluna da direita */}
-        <div className="lg:col-span-2">
-          <div className="bg-black rounded-lg shadow-lg overflow-hidden border border-gray-800 mb-6">
-            <div className="p-4 bg-black border-b border-gray-800">
-              <h2 className="text-xl font-semibold text-white flex items-center">
-                <Sparkles className="h-5 w-5 mr-2" />
-                Novo Conteúdo
-              </h2>
-            </div>
-            
-            <div className="p-4">
-              {/* Título do conteúdo */}
-              <div className="mb-4">
-                <label htmlFor="title" className="block text-sm font-medium text-gray-400 mb-1">
-                  Título do conteúdo
-                </label>
-                <input
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Digite um título para seu conteúdo..."
-                  className="w-full px-4 py-2 bg-black border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              {/* Tipo de conteúdo */}
-              <div className="mb-4">
-                <label htmlFor="contentType" className="block text-sm font-medium text-gray-400 mb-1">
-                  Tipo de conteúdo
-                </label>
-                <select
-                  id="contentType"
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value as any)}
-                  className="w-full px-4 py-2 bg-black border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  {contentTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Área do prompt */}
-              <div className="mb-4">
-                <label htmlFor="prompt" className="block text-sm font-medium text-gray-400 mb-1">
-                  O que você deseja criar?
-                </label>
-                <textarea
-                  id="prompt"
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Descreva o conteúdo que você deseja criar..."
-                  className="w-full px-4 py-2 bg-black border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[120px]"
-                />
-              </div>
-
-              {/* Botão de gerar */}
-              {/* Mensagem de erro - só exibir se não houver histórico disponível */}
-              {error && history.length === 0 && (
-                <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-md flex items-start">
-                  <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
-                  <p className="text-red-200 text-sm">{error}</p>
-                </div>
-              )}
-
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading || !prompt.trim()}
-                  className={`flex items-center px-6 py-3 rounded-lg transition-all duration-300 ${
-                    loading || !prompt.trim()
-                      ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white hover:from-blue-700 hover:to-indigo-800 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
-                  }`}
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                      <span>Gerando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-5 w-5 mr-2" />
-                      <span>Gerar Conteúdo</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Área de resposta */}
-          {response && (
-            <div className="bg-black rounded-lg shadow-lg overflow-hidden border border-gray-800">
-              <div className="p-4 bg-black border-b border-gray-800 flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-white">Conteúdo Gerado</h2>
-                <button
-                  onClick={copyToClipboard}
-                  className="flex items-center px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-md text-white transition-colors"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="h-4 w-4 mr-1" />
-                      <span>Copiado!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4 mr-1" />
-                      <span>Copiar</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              <div className="p-4">
-                <div className="bg-gray-900 rounded-lg p-4 text-white whitespace-pre-line border border-gray-800">
-                  {response}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
       </div>
     </>
   );

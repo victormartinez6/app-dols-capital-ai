@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../../../../../contexts/AuthContext';
 import { db } from '../../../../../lib/firebase';
-import { collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { AIPrompt } from '../types';
 
 interface UseAICreatorReturn {
@@ -34,97 +34,87 @@ export const useAICreator = (): UseAICreatorReturn => {
   const [selectedType, setSelectedType] = useState<'social-post' | 'article' | 'email' | 'other'>('social-post');
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
-
-  // Carregar histórico do usuário com persistência
+  
+  // Função para carregar o histórico diretamente do Firestore
   const loadHistory = useCallback(async () => {
     try {
-      if (!user?.id) return;
+      // Ativar estado de carregamento
+      setLoading(true);
       
-      // Primeiro, verificar se temos dados em cache no localStorage
-      const cachedHistoryKey = `ai_history_${user.id}`;
-      const cachedHistory = localStorage.getItem(cachedHistoryKey);
-      
-      // Se tiver dados em cache, usar temporariamente enquanto carrega do Firestore
-      if (cachedHistory) {
-        try {
-          const parsedHistory = JSON.parse(cachedHistory);
-          if (Array.isArray(parsedHistory)) {
-            // Converter strings de data para objetos Date
-            const formattedHistory = parsedHistory.map(item => ({
-              ...item,
-              createdAt: new Date(item.createdAt)
-            }));
-            setHistory(formattedHistory);
-            console.log('Histórico carregado do cache local');
-          }
-        } catch (e) {
-          console.error('Erro ao processar cache do histórico:', e);
-        }
+      if (!user?.id) {
+        console.error('ERRO: Usuário não autenticado. Não é possível carregar o histórico.');
+        setError('Usuário não autenticado');
+        setLoading(false);
+        return;
       }
-
-      // Buscar dados atualizados do Firestore
+      
+      // Buscar dados do Firestore de forma simples e direta
+      // Usando apenas where sem orderBy para evitar o erro de índice
       const q = query(
         collection(db, 'ai-prompts'),
-        where('userId', '==', user.id),
-        orderBy('createdAt', 'desc')
+        where('userId', '==', user.id)
       );
 
       const querySnapshot = await getDocs(q);
+      console.log(`Firestore retornou ${querySnapshot.size} documentos`);
+      
+      if (querySnapshot.empty) {
+        console.log('Nenhum documento encontrado no Firestore');
+        setHistory([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Converter os documentos para o formato AIPrompt
       const prompts: AIPrompt[] = [];
-
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         prompts.push({
           id: doc.id,
-          prompt: data.prompt,
-          response: data.response,
+          prompt: data.prompt || '',
+          response: data.response || '',
           createdAt: data.createdAt?.toDate() || new Date(),
-          userId: data.userId,
-          userEmail: data.userEmail || '',
+          userId: data.userId || user.id,
+          userEmail: data.userEmail || user.email || '',
           type: data.type || 'other',
           title: data.title || 'Sem título'
         });
       });
-
-      // Limitar a 5 itens e atualizar o estado com os dados do Firestore
+      
+      // Ordenar manualmente por data de criação (mais recente primeiro)
+      prompts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      
+      // Limitar a 5 itens
       const limitedPrompts = prompts.slice(0, 5);
+      
+      console.log('Histórico carregado com sucesso:', limitedPrompts.length, 'itens');
+      
+      // Atualizar o estado com os dados do Firestore
       setHistory(limitedPrompts);
+      setError('');
       
-      // Se tivermos mais de 5 itens, excluir os excedentes do Firestore
-      if (prompts.length > 5) {
-        console.log(`Excluindo ${prompts.length - 5} itens antigos do histórico`);
-        const itemsToDelete = prompts.slice(5);
-        
-        // Excluir itens antigos do Firestore em segundo plano
-        itemsToDelete.forEach(async (item) => {
-          try {
-            if (item.id) {
-              await deleteDoc(doc(db, 'ai-prompts', item.id));
-              console.log(`Item antigo excluído: ${item.id}`);
-            }
-          } catch (e) {
-            console.error(`Erro ao excluir item antigo ${item.id}:`, e);
-          }
-        });
-      }
-      
-      // Salvar no localStorage para persistência
-      try {
-        // Precisamos converter as datas para strings antes de salvar
-        const historyForCache = prompts.map(item => ({
-          ...item,
-          createdAt: item.createdAt.toISOString()
-        }));
-        localStorage.setItem(cachedHistoryKey, JSON.stringify(historyForCache));
-        console.log('Histórico salvo no cache local');
-      } catch (e) {
-        console.error('Erro ao salvar histórico no cache:', e);
-      }
+      // Desativar estado de carregamento
+      setLoading(false);
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
-      setError('Não foi possível carregar seu histórico. Tente novamente mais tarde.');
+      setError('Erro ao carregar histórico: ' + (error as Error).message);
+      setLoading(false);
     }
-  }, [user?.id]);
+  }, [user, setHistory, setError]);
+  
+  // Efeito para carregar o histórico apenas quando o componente é montado
+  useEffect(() => {
+    console.log('Componente montado - carregando histórico uma única vez');
+    loadHistory();
+  }, [loadHistory]);
+  
+  // Efeito adicional para carregar o histórico quando o usuário estiver autenticado
+  useEffect(() => {
+    if (user?.id) {
+      console.log('Usuário autenticado detectado - carregando histórico');
+      loadHistory();
+    }
+  }, [user?.id, loadHistory]);
 
   // Função para gerar conteúdo com a API do ChatGPT
   const generateContent = useCallback(async () => {
@@ -231,8 +221,14 @@ export const useAICreator = (): UseAICreatorReturn => {
   // Função para salvar no histórico
   const saveToHistory = useCallback(async (promptText: string, responseText: string) => {
     try {
-      if (!user?.id) return;
+      if (!user?.id) {
+        console.error('Usuário não autenticado. Não é possível salvar no histórico.');
+        return;
+      }
 
+      console.log('Salvando no histórico para o usuário:', user.id);
+      
+      // Salvar no Firestore
       const docRef = await addDoc(collection(db, 'ai-prompts'), {
         prompt: promptText,
         response: responseText,
@@ -243,7 +239,9 @@ export const useAICreator = (): UseAICreatorReturn => {
         title: title
       });
 
-      // Atualizar o histórico local
+      console.log('Item salvo no Firestore com ID:', docRef.id);
+
+      // Criar o novo item para o histórico local
       const newPrompt: AIPrompt = {
         id: docRef.id,
         prompt: promptText,
@@ -258,6 +256,7 @@ export const useAICreator = (): UseAICreatorReturn => {
       // Atualizar o estado com o novo item no topo, limitando a 5 itens
       const updatedHistory = [newPrompt, ...history].slice(0, 5);
       setHistory(updatedHistory);
+      console.log('Estado do histórico atualizado com', updatedHistory.length, 'itens');
       
       // Se tivermos mais de 5 itens após adicionar o novo, excluir o mais antigo
       if (history.length >= 5) {
@@ -266,29 +265,20 @@ export const useAICreator = (): UseAICreatorReturn => {
           if (itemToDelete?.id) {
             console.log(`Excluindo item antigo do histórico: ${itemToDelete.id}`);
             await deleteDoc(doc(db, 'ai-prompts', itemToDelete.id));
+            console.log(`Item antigo excluído com sucesso: ${itemToDelete.id}`);
           }
         } catch (e) {
           console.error(`Erro ao excluir item antigo ${itemToDelete?.id}:`, e);
         }
       }
       
-      // Atualizar o cache local imediatamente
-      try {
-        const cachedHistoryKey = `ai_history_${user.id}`;
-        const historyForCache = updatedHistory.map(item => ({
-          ...item,
-          createdAt: item.createdAt.toISOString()
-        }));
-        localStorage.setItem(cachedHistoryKey, JSON.stringify(historyForCache));
-        console.log('Cache local atualizado com novo item');
-      } catch (e) {
-        console.error('Erro ao atualizar cache local:', e);
-      }
+      // Recarregar o histórico para garantir que está atualizado
+      loadHistory();
       
     } catch (error) {
       console.error('Erro ao salvar no histórico:', error);
     }
-  }, [user, selectedType, title, history]);
+  }, [user, selectedType, title, history, loadHistory]);
 
   // Função para excluir um item do histórico
   const deleteHistoryItem = useCallback(async (id: string) => {
@@ -299,18 +289,8 @@ export const useAICreator = (): UseAICreatorReturn => {
       const updatedHistory = history.filter(item => item.id !== id);
       setHistory(updatedHistory);
       
-      // Atualizar o cache local imediatamente
-      try {
-        const cachedHistoryKey = `ai_history_${user.id}`;
-        const historyForCache = updatedHistory.map(item => ({
-          ...item,
-          createdAt: item.createdAt.toISOString()
-        }));
-        localStorage.setItem(cachedHistoryKey, JSON.stringify(historyForCache));
-        console.log('Cache local atualizado após exclusão');
-      } catch (e) {
-        console.error('Erro ao atualizar cache local após exclusão:', e);
-      }
+      // Log de confirmação
+      console.log('Item removido do histórico com sucesso:', id);
       
       // Remover do Firestore
       await deleteDoc(doc(db, 'ai-prompts', id));
