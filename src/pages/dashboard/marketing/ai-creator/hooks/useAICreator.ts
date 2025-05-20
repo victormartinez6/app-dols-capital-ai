@@ -139,6 +139,18 @@ export const useAICreator = (): UseAICreatorReturn => {
       // Usar variável de ambiente para a chave da API
       const apiKey = import.meta.env.VITE_OPENAI_API_KEY || "API_KEY_PLACEHOLDER"
       
+      // Log para depuração (será visível no console do navegador)
+      if (apiKey === "API_KEY_PLACEHOLDER" || !apiKey) {
+        console.error("Chave da API OpenAI não encontrada nas variáveis de ambiente!")
+        throw new Error("Chave da API OpenAI não configurada. Verifique as variáveis de ambiente.")
+      }
+      
+      try {
+        console.log(`Usando chave da API: ${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 4)}`)
+      } catch (e) {
+        console.error("Erro ao processar a chave da API:", e)
+      }
+      
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
