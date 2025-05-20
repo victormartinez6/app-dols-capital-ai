@@ -86,8 +86,27 @@ export const useAICreator = (): UseAICreatorReturn => {
         });
       });
 
-      // Atualizar o estado com os dados do Firestore
-      setHistory(prompts);
+      // Limitar a 5 itens e atualizar o estado com os dados do Firestore
+      const limitedPrompts = prompts.slice(0, 5);
+      setHistory(limitedPrompts);
+      
+      // Se tivermos mais de 5 itens, excluir os excedentes do Firestore
+      if (prompts.length > 5) {
+        console.log(`Excluindo ${prompts.length - 5} itens antigos do histórico`);
+        const itemsToDelete = prompts.slice(5);
+        
+        // Excluir itens antigos do Firestore em segundo plano
+        itemsToDelete.forEach(async (item) => {
+          try {
+            if (item.id) {
+              await deleteDoc(doc(db, 'ai-prompts', item.id));
+              console.log(`Item antigo excluído: ${item.id}`);
+            }
+          } catch (e) {
+            console.error(`Erro ao excluir item antigo ${item.id}:`, e);
+          }
+        });
+      }
       
       // Salvar no localStorage para persistência
       try {
@@ -137,16 +156,31 @@ export const useAICreator = (): UseAICreatorReturn => {
 
       // Fazer a requisição para a API do OpenAI
       // Usar variável de ambiente para a chave da API
-      const apiKey = import.meta.env.VITE_OPENAI_API_KEY || "API_KEY_PLACEHOLDER"
+      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
       
       // Log para depuração (será visível no console do navegador)
-      if (apiKey === "API_KEY_PLACEHOLDER" || !apiKey) {
+      console.log("Verificando variável de ambiente:", {
+        definida: apiKey !== undefined,
+        vazia: apiKey === "",
+        tipo: typeof apiKey
+      });
+      
+      if (!apiKey) {
         console.error("Chave da API OpenAI não encontrada nas variáveis de ambiente!")
         throw new Error("Chave da API OpenAI não configurada. Verifique as variáveis de ambiente.")
       }
       
+      // Verificar se a chave tem o formato correto (começa com 'sk-')
+      if (typeof apiKey === 'string' && !apiKey.startsWith('sk-')) {
+        console.warn("A chave da API OpenAI não parece estar no formato correto (deve começar com 'sk-')")
+      }
+      
       try {
-        console.log(`Usando chave da API: ${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 4)}`)
+        if (typeof apiKey === 'string' && apiKey.length > 10) {
+          console.log(`Usando chave da API: ${apiKey.substring(0, 3)}...${apiKey.substring(apiKey.length - 4)}`)
+        } else {
+          console.log("Chave da API encontrada, mas pode estar em formato inválido")
+        }
       } catch (e) {
         console.error("Erro ao processar a chave da API:", e)
       }
@@ -221,9 +255,22 @@ export const useAICreator = (): UseAICreatorReturn => {
         title: title
       };
 
-      // Atualizar o estado com o novo item no topo
-      const updatedHistory = [newPrompt, ...history];
+      // Atualizar o estado com o novo item no topo, limitando a 5 itens
+      const updatedHistory = [newPrompt, ...history].slice(0, 5);
       setHistory(updatedHistory);
+      
+      // Se tivermos mais de 5 itens após adicionar o novo, excluir o mais antigo
+      if (history.length >= 5) {
+        const itemToDelete = history[4]; // O 5º item (agora o 6º após adicionar o novo)
+        try {
+          if (itemToDelete?.id) {
+            console.log(`Excluindo item antigo do histórico: ${itemToDelete.id}`);
+            await deleteDoc(doc(db, 'ai-prompts', itemToDelete.id));
+          }
+        } catch (e) {
+          console.error(`Erro ao excluir item antigo ${itemToDelete?.id}:`, e);
+        }
+      }
       
       // Atualizar o cache local imediatamente
       try {
