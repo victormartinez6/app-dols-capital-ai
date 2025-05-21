@@ -389,25 +389,8 @@ const UploadModal: React.FC<UploadModalProps> = ({
     }
   }, [internalUploadProgress, onClose]);
   
-  // Efeito adicional para garantir que o modal seja fechado se ficar aberto por muito tempo
-  useEffect(() => {
-    if (!show) return;
-    
-    // Timer de segurança global: fechar o modal após 15 segundos independentemente do progresso
-    const globalSafetyTimer = setTimeout(() => {
-      console.log('Timer de segurança global acionado. Fechando o modal.');
-      // Limpar formulário
-      setFileToUpload(null);
-      setMultipleFiles([]);
-      setFileDescription('');
-      setError(null);
-      
-      // Fechar modal
-      onClose();
-    }, 15000);
-    
-    return () => clearTimeout(globalSafetyTimer);
-  }, [show, onClose]);
+  // Removido o timer de segurança global que fechava o modal automaticamente após 15 segundos
+  // O modal agora permanecerá aberto até que o usuário decida fechá-lo ou fazer o upload
   
   // Arredondar o progresso para números inteiros
   const roundedProgress = Math.round(uploadProgress);
